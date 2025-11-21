@@ -3,11 +3,11 @@ import os
 import re
 
 from aiogram import Bot, Dispatcher, types
-from aiogram.filters import Command
+from aiogram.filters import Command, callback_data
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
 from dotenv import load_dotenv
 
-from .models import Link, User, check_tg_username
+from .models import Link, User, Username
 from .userdb import UserDB
 
 load_dotenv()
@@ -19,6 +19,11 @@ TOKEN = tkn
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
+
+
+class LinkCallback(callback_data.CallbackData, prefix="link"):
+    username_to: str
+    rating: int
 
 
 @dp.message(Command("start"))
@@ -38,36 +43,52 @@ async def get_usS(message: types.Message):
 @dp.message()
 async def user_name_checker(message: types.Message):
     msg = (message.text).strip()
-    if msg[0] == '@':
-        msg = msg[1:]
     try:
-        check_tg_username(msg)
-    except Exception:
+        username_to = Username(msg)
+    except ValueError:
         await message.answer('Напиши юз друга в формате "@username"')
         return
 
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="Ежедневно", callback_data=f"3:{msg}"),
-                InlineKeyboardButton(text="Раз в неск дней", callback_data=f"2:{msg}"),
-                InlineKeyboardButton(text="Раз в 2+ недели", callback_data=f"1:{msg}"),
+                InlineKeyboardButton(
+                    text="Ежедневно",
+                    callback_data=LinkCallback(
+                        username_to=username_to, rating=3
+                    ).pack(),
+                ),
+                InlineKeyboardButton(
+                    text="Раз в неск дней",
+                    callback_data=LinkCallback(
+                        username_to=username_to, rating=2
+                    ).pack(),
+                ),
+                InlineKeyboardButton(
+                    text="Раз в 2+ недели",
+                    callback_data=LinkCallback(
+                        username_to=username_to, rating=1
+                    ).pack(),
+                ),
             ]
         ]
     )
 
     await message.answer("Насколько часто вы общаетесь?", reply_markup=kb)
 
-@dp.callback_query()
-async def process_data(callback: CallbackQuery):
-    us, rating = callback.data.split(":")[1], callback.data.split(":")[0]
-    if userdb.get_user(callback.from_user.username) is None:
-        userdb.add_user(User(username=callback.from_user.username))
-    userdb.add_link(callback.from_user.username, Link(username_to=us, rating=rating))
-    await callback.message.edit_text(
-        f"Пасибки<3, я записал {us} в тетрадочку", reply_markup=None
+
+@dp.callback_query(LinkCallback.filter())
+async def process_data(query: CallbackQuery, callback_data: LinkCallback):
+    if userdb.get_user(query.from_user.username) is None:
+        userdb.add_user(User(username=query.from_user.username))
+    userdb.add_link(
+        query.from_user.username,
+        Link(username_to=callback_data.username_to, rating=callback_data.rating),
     )
-    print(f"Добавил {us} с оценкой {rating}")
+    await query.message.edit_text(
+        f"Пасибки<3, я записал @{Username(callback_data.username_to)} в тетрадочку",
+        reply_markup=None,
+    )
 
 
 async def main():
