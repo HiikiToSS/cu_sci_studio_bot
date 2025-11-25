@@ -1,18 +1,21 @@
-import asyncio
 import os
-import re
 
 from aiogram import Bot, Dispatcher, types
-from aiogram.filters import Command, callback_data
-from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.filters import Command, CommandStart, callback_data
+from aiogram.types import (
+    BotCommand,
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+)
 from dotenv import load_dotenv
 
-from .models import Link, User, Username
-from .userdb import UserDB
+from .models import Link, User, check_tg_username
+from .userdb import ListUserDB
 
 load_dotenv()
 
-userdb = UserDB()
+userdb = ListUserDB()
 
 tkn = os.getenv("TG_BOT_TOKEN")
 TOKEN = tkn
@@ -26,16 +29,21 @@ class LinkCallback(callback_data.CallbackData, prefix="link"):
     rating: int
 
 
-@dp.message(Command("start"))
+@dp.message(CommandStart())
 async def start_handler(message: types.Message):
     await message.answer("Укажи юзернеймы друзей (@username)")
 
 
-@dp.message(Command("get_names"))
+# TODO: Сделать в качестве ReplyButton, так проще для пользователя
+@dp.message(
+    Command(BotCommand(command="get_names", description="Посмотреть на свои связи"))
+)
 async def get_usS(message: types.Message):
     links = userdb.get_links(message.from_user.username)
     all_users_and_rating = "\n".join(
-        f"{link.username_to} - {link.rating}" for link in links
+        # TODO: Добавить название рейтингу (Можно сделать тип из LiteralString)
+        f"@{link.username_to} - {link.rating}"
+        for link in links
     )
     await message.answer(all_users_and_rating)
 
@@ -44,7 +52,7 @@ async def get_usS(message: types.Message):
 async def user_name_checker(message: types.Message):
     msg = (message.text).strip()
     try:
-        username_to = Username(msg)
+        username_to = check_tg_username(msg)
     except ValueError:
         await message.answer('Напиши юз друга в формате "@username"')
         return
@@ -57,20 +65,24 @@ async def user_name_checker(message: types.Message):
                     callback_data=LinkCallback(
                         username_to=username_to, rating=3
                     ).pack(),
-                ),
+                )
+            ],
+            [
                 InlineKeyboardButton(
                     text="Раз в неск дней",
                     callback_data=LinkCallback(
                         username_to=username_to, rating=2
                     ).pack(),
                 ),
+            ],
+            [
                 InlineKeyboardButton(
                     text="Раз в 2+ недели",
                     callback_data=LinkCallback(
                         username_to=username_to, rating=1
                     ).pack(),
                 ),
-            ]
+            ],
         ]
     )
 
@@ -86,7 +98,7 @@ async def process_data(query: CallbackQuery, callback_data: LinkCallback):
         Link(username_to=callback_data.username_to, rating=callback_data.rating),
     )
     await query.message.edit_text(
-        f"Пасибки<3, я записал @{Username(callback_data.username_to)} в тетрадочку",
+        f"Пасибки<3, я записал @{callback_data.username_to} в тетрадочку",
         reply_markup=None,
     )
 

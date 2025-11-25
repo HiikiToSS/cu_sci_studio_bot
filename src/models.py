@@ -5,15 +5,14 @@ from pydantic import AfterValidator, BaseModel, Field
 
 
 def check_tg_username(username: str) -> str:
-    if username[0] == '@':
-        username = username[1:]
+    username = username.strip().strip('@')
     pattern = r"^[A-Za-z0-9_]+$"
     if re.match(pattern, username):
         return username
     raise ValueError(f'{username} is not valid username')
 
-Username = Annotated[str, AfterValidator(check_tg_username), Field(min_length=3)]
-#AllowedSex = Literal["male", "female"]
+Username = Annotated[str, AfterValidator(check_tg_username)]
+Sex = Literal["male", "female"]
 
 class Link(BaseModel):
     username_to: Username
@@ -22,5 +21,13 @@ class Link(BaseModel):
 class User(BaseModel) :
     username: Username
     # TODO: Add sex, course, etc.
-    #sex: AllowedSex
-    links: list[Link] = []
+    #sex: Sex
+    #course: int = Field(ge=1,le=2)
+    _links: list[Link] = []
+
+    def set_link(self, link: Link):
+        for i in self._links:
+            if i.username_to == link.username_to:
+                i = link
+                return
+        self._links.append(link)
