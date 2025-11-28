@@ -4,8 +4,19 @@ from datetime import datetime
 
 from pydantic import BaseModel      # а на кой ляд нам в принципе BaseModel? - вроде тупо класс же можно создать 
 
+from typing import List, Optional
+
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+
+MONGO_DB_TOKEN = os.getenv('MONGO_DB_TOKEN')
+
+
 try:
-    client = MongoClient("mongodb://localhost:27017", serverSelectionTimeoutMS=5000)  # 5 секунд на выбор сервера
+    client = MongoClient(MONGO_DB_TOKEN, serverSelectionTimeoutMS=5000)  # 5 секунд на выбор сервера
     
     # Проверка соединения (важно!)
     client.admin.command("ping")
@@ -20,10 +31,10 @@ except ServerSelectionTimeoutError as e:
 
 class NewUser(BaseModel):
     user_id: str
-    friends: list()
-    last_added_friend_number: int
+    friends: List[str] = []
+    last_added_friend_number: int = 0
 
-
+print(NewUser(user_id='tg-1'))
 
 
 
@@ -39,11 +50,23 @@ docs = [
     {"user_id": 'tg-3', "friends": ['ivan', 'lion', 'female'], 'last_added_friend_number': 3},
 ]
 
+for d in docs:
+    try:
+        collection.insert_one(d)
+        print("Inserted smthg")
+    except DuplicateKeyError:
+        print("Already exists", d["user_id"])
+
+print("\nПоиск по user_id=2:")
+# doc = collection.find_one({"user_id": 'tg-2'})
+
 # ______________ Добавление нового друга __________-
 user_to_find = 'tg-2'
 user_to_add = 'myLove'
 
 current_user = collection.find_one({'user_id': user_to_find})
+
+print('эта карр юзер френды: ', current_user['friends'])
 
 if user_to_add in current_user['friends']:
     print('Этого кореша ты уже добавил')     #кидать юзеру мсг, что этот чел уже добавлен
@@ -52,7 +75,7 @@ else:
     collection.update_one(
         {"user_id": user_to_find},
         {
-            "$set": {f'friend {last_num}': user_to_add},
+            "$set": {f'friend {last_num}': user_to_add},    # придурок нахуй, ты юзера нового делаешь, когда требуется его в эррей запихивать
             "$inc": {"last_added_id": 1}      # увеличить на 1
         }
     )
@@ -79,17 +102,6 @@ print(*all_friends)
 user_to_find_for_info = 'tg-1'
 all_user_data = collection.find_one(user_to_find_for_info)
 print(all_user_data)
-
-for d in docs:
-    try:
-        collection.insert_one(d)
-        print("Inserted", d)
-    except DuplicateKeyError:
-        print("Already exists", d["user_id"])
-
-print("\nПоиск по user_id=2:")
-doc = collection.find_one({"user_id": 2})
-print(doc)
 
 # обновление списка друзей
 collection.update_one(
