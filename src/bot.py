@@ -13,6 +13,8 @@ from dotenv import load_dotenv
 from .models import Link, User, check_tg_username
 from .userdb import ListUserDB
 
+import requests
+
 load_dotenv()
 
 userdb = ListUserDB()

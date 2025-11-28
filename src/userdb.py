@@ -3,6 +3,13 @@ from typing import Optional
 
 from .models import Link, User, Username
 
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
+BMONGODB_TOKEN = os.getenv('BMONGODB_TOKEN')
+
+
 
 class AbstractUserDB(ABC):
     @abstractmethod

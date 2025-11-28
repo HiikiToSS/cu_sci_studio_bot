@@ -6,7 +6,7 @@ from pydantic import AfterValidator, BaseModel, Field
 
 def check_tg_username(username: str) -> str:
     username = username.strip().strip('@')
-    pattern = r"^[A-Za-z0-9_]+$"
+    pattern = r"^[A-z0-9_]+$"
     if re.match(pattern, username):
         return username
     raise ValueError(f'{username} is not valid username')

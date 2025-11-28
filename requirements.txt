@@ -2,3 +2,7 @@ aiogram>=3.22.0
 asyncio>=4.0.0
 dotenv>=0.9.9
 pydantic>=2.11.10
+
+motor
+python-dotenv
+telethon
