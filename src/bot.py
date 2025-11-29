@@ -11,13 +11,13 @@ from aiogram.types import (
 from dotenv import load_dotenv
 
 from .models import Link, User, check_tg_username
-from .userdb import ListUserDB
+from .userdb import MongoUserDB
 
 import requests
 
 load_dotenv()
 
-userdb = ListUserDB()
+userdb = MongoUserDB()
 
 tkn = os.getenv("TG_BOT_TOKEN")
 TOKEN = tkn
@@ -56,14 +56,14 @@ async def user_name_checker(message: types.Message):
     try:
         username_to = check_tg_username(msg)
     except ValueError:
-        await message.answer('Напиши юз друга в формате "@username"')
+        await message.answer('Напиши юз в формате "@username"')
         return
 
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="Ежедневно",
+                    text="Близкий друг",
                     callback_data=LinkCallback(
                         username_to=username_to, rating=3
                     ).pack(),
@@ -71,7 +71,7 @@ async def user_name_checker(message: types.Message):
             ],
             [
                 InlineKeyboardButton(
-                    text="Раз в неск дней",
+                    text="Приятель",
                     callback_data=LinkCallback(
                         username_to=username_to, rating=2
                     ).pack(),
@@ -79,7 +79,7 @@ async def user_name_checker(message: types.Message):
             ],
             [
                 InlineKeyboardButton(
-                    text="Раз в 2+ недели",
+                    text="Знакомый",
                     callback_data=LinkCallback(
                         username_to=username_to, rating=1
                     ).pack(),
@@ -88,7 +88,7 @@ async def user_name_checker(message: types.Message):
         ]
     )
 
-    await message.answer("Насколько часто вы общаетесь?", reply_markup=kb)
+    await message.answer("Кто он для тебя?", reply_markup=kb)
 
 
 @dp.callback_query(LinkCallback.filter())
