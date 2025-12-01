@@ -16,3 +16,4 @@ docker-compose.yml
 **/.env
 .env.example
 **/*.lock
+data
