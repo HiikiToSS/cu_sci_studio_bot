@@ -1,0 +1,18 @@
+services:
+  bot:
+    build: .
+    container_name: cu-graph-bot
+    environment:
+      TG_BOT_TOKEN: ${TG_BOT_TOKEN}
+      MONGODB_HOST: mongodb://${MONGODB_USERNAME}:${MONGODB_PASSWORD}@mongodb:${MONGODB_PORT}
+    develop:
+      watch:
+        - action: sync+restart
+          path: .
+          target: /app
+  mongodb:
+    image: "mongo:latest"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD}
+    

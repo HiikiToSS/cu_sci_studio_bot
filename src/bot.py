@@ -11,16 +11,13 @@ from aiogram.types import (
 from dotenv import load_dotenv
 
 from .models import Link, User, check_tg_username
-from .userdb import MongoUserDB
-
-import requests
+from .userdb import userdb
 
 load_dotenv()
 
-userdb = MongoUserDB()
-
-tkn = os.getenv("TG_BOT_TOKEN")
-TOKEN = tkn
+TOKEN = os.getenv("TG_BOT_TOKEN")
+if TOKEN is None:
+    raise Exception("Couldn't find TG_BOT_TOKEN")
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
@@ -41,7 +38,7 @@ async def start_handler(message: types.Message):
     Command(BotCommand(command="get_names", description="Посмотреть на свои связи"))
 )
 async def get_usS(message: types.Message):
-    links = userdb.get_links(message.from_user.username)
+    links = await userdb.get_links(message.from_user.username)
     all_users_and_rating = "\n".join(
         # TODO: Добавить название рейтингу (Можно сделать тип из LiteralString)
         f"@{link.username_to} - {link.rating}"
@@ -93,17 +90,16 @@ async def user_name_checker(message: types.Message):
 
 @dp.callback_query(LinkCallback.filter())
 async def process_data(query: CallbackQuery, callback_data: LinkCallback):
-    if userdb.get_user(query.from_user.username) is None:
-        userdb.add_user(User(username=query.from_user.username))
-    userdb.add_link(
-        query.from_user.username,
+    from_username = query.from_user.username
+    if from_username is None:
+        raise Exception("WTF?")
+    if await userdb.get_user(from_username) is None:
+        await userdb.add_user(User(username=from_username))
+    await userdb.add_link(
+        from_username,
         Link(username_to=callback_data.username_to, rating=callback_data.rating),
     )
     await query.message.edit_text(
         f"Пасибки<3, я записал @{callback_data.username_to} в тетрадочку",
         reply_markup=None,
     )
-
-
-async def main():
-    await dp.start_polling(bot)
