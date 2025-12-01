@@ -13,6 +13,7 @@ def check_tg_username(username: str) -> str:
 
 Username = Annotated[str, AfterValidator(check_tg_username)]
 Sex = Literal["male", "female"]
+Living = Literal["Cloud", "Cosmos", "Baikal", "Homeless"]
 
 class Link(BaseModel):
     username_to: Username
@@ -21,8 +22,9 @@ class Link(BaseModel):
 class User(BaseModel) :
     username: Username
     # TODO: Add sex, course, etc.
-    #sex: Sex
-    #course: int = Field(ge=1,le=2)
+    sex: Sex
+    course: int = Field(ge=1,le=2)
+    living: Living
     _links: list[Link] = []
 
     def set_link(self, link: Link):

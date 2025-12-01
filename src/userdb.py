@@ -76,7 +76,9 @@ class MongoUserDB(UserDB):
         all_friends = await self.collection.find_one({"username": username})
         if all_friends is None:
             raise UserNotExist
-        return [Link(i) for i in all_friends["_links"]]
+        if "_links" not in all_friends:
+            return []
+        return [Link.model_validate(i) for i in all_friends["_links"]]
 
     async def get_user(self, username: Username) -> Optional[User]:
         await self._ensure_connection()
