@@ -102,6 +102,13 @@ class MongoUserDB(UserDB):
                 {"username": username}, {"$push": {"_links": link.model_dump()}}
             )
 
+    async def count_users(self) -> int:
+        await self._ensure_connection()
+        count = len(
+            [i async for i in self.collection.find({"_links.4": {"$exists": True}})]
+        )
+        return count
+
 
 class ListUserDB(UserDB):
     _users: list[User]

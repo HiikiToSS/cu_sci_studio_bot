@@ -52,6 +52,7 @@ rkb = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="Мои контакты")],
         [KeyboardButton(text="Узнать тип личности")],
+        [KeyboardButton(text="Кол-во пользователей")],
     ]
 )
 
@@ -228,7 +229,10 @@ async def process_living(
 
 async def start_survey(message: types.Message):
     await message.answer(explaining_links_message, parse_mode=ParseMode.HTML)
-    await message.answer("Напиши юзернейм (@username) и я предложу тебе выбрать его категорию", reply_markup=rkb)
+    await message.answer(
+        "Напиши юзернейм (@username) и я предложу тебе выбрать его категорию",
+        reply_markup=rkb,
+    )
 
 
 def rating_to_text(rating: int) -> str:
@@ -308,9 +312,7 @@ async def get_summary(message: types.Message):
             ),
             parse_mode=ParseMode.HTML,
         )
-    elif (
-        p3 >= 0.25 and p2 >= 0.25 and p1 >= 0.25
-    ):
+    elif p3 >= 0.25 and p2 >= 0.25 and p1 >= 0.25:
         await message.answer(
             make_type_str(
                 "Универсальный коннектор",
@@ -325,9 +327,7 @@ async def get_summary(message: types.Message):
             ),
             parse_mode=ParseMode.HTML,
         )
-    elif (
-        p3 >= 0.35 and p1 >= 0.25
-    ):
+    elif p3 >= 0.35 and p1 >= 0.25:
         await message.answer(
             make_type_str(
                 "Стратегический коммуникатор",
@@ -342,10 +342,7 @@ async def get_summary(message: types.Message):
             ),
             parse_mode=ParseMode.HTML,
         )
-    elif (
-        abs(p3 - p2) <= 0.3
-        and abs(p2 - p1) / len(ratings) <= 0.3
-    ):
+    elif abs(p3 - p2) <= 0.3 and abs(p2 - p1) / len(ratings) <= 0.3:
         await message.answer(
             make_type_str(
                 "Стабильный якорь",
@@ -364,6 +361,14 @@ async def get_summary(message: types.Message):
         await message.answer(
             "Прости, я не знаю какой тип личности у тебя. Ты воистину уникален"
         )
+
+
+@dp.message(F.text == "Кол-во пользователей")
+async def get_count(message: types.Message):
+    count = await userdb.count_users()
+    await message.answer(
+        f"Ботом уже воспользовались {count} человек{'а' if count % 10 > 2 and count % 10 < 5 else ''}!"
+    )
 
 
 @dp.message(F.text[0] == "@")
