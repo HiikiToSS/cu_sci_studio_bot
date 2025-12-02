@@ -271,11 +271,14 @@ def make_type_str(type: str, profile: str, strong_sides: List[str], recomendatio
 async def get_summary(message: types.Message):
     links = await userdb.get_links(message.from_user.username)
     ratings = [i.rating for i in links]
+    p1 = ratings.count(1) / len(ratings)
+    p2 = ratings.count(2) / len(ratings)
+    p3 = ratings.count(3) / len(ratings)
     if len(ratings) < 5:
         await message.answer(
             "К сожалению, ты написал слишком мало для полноценного отчёта. Давай постараемся добавить всех друзей!"
         )
-    elif ratings.count(3) / len(ratings) >= 0.6:
+    elif p3 >= 0.5:
         await message.answer(
             make_type_str(
                 "Сердце компании",
@@ -290,7 +293,7 @@ async def get_summary(message: types.Message):
             ),
             parse_mode=ParseMode.HTML,
         )
-    elif ratings.count(2) / len(ratings) >= 0.5:
+    elif p2 >= 0.4:
         await message.answer(
             make_type_str(
                 "Социальный организатор",
@@ -306,9 +309,7 @@ async def get_summary(message: types.Message):
             parse_mode=ParseMode.HTML,
         )
     elif (
-        ratings.count(3) / len(ratings) >= 0.25
-        and ratings.count(2) / len(ratings) >= 0.25
-        and ratings.count(1) / len(ratings) >= 0.25
+        p3 >= 0.25 and p2 >= 0.25 and p1 >= 0.25
     ):
         await message.answer(
             make_type_str(
@@ -325,7 +326,7 @@ async def get_summary(message: types.Message):
             parse_mode=ParseMode.HTML,
         )
     elif (
-        ratings.count(3) / len(ratings) >= 0.4 and ratings.count(1) / len(ratings) >= 0.3
+        p3 >= 0.35 and p1 >= 0.25
     ):
         await message.answer(
             make_type_str(
@@ -342,8 +343,8 @@ async def get_summary(message: types.Message):
             parse_mode=ParseMode.HTML,
         )
     elif (
-        abs(ratings.count(3) - ratings.count(2)) / len(ratings) <= 0.3
-        and abs(ratings.count(2) - ratings.count(1)) / len(ratings) <= 0.3
+        abs(p3 - p2) <= 0.3
+        and abs(p2 - p1) / len(ratings) <= 0.3
     ):
         await message.answer(
             make_type_str(
