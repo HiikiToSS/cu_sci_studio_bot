@@ -9,4 +9,4 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 
 COPY . .
 
-ENTRYPOINT [ "python" "./main.py"]
+ENTRYPOINT [ "python", "./main.py"]
