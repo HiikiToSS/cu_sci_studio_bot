@@ -275,7 +275,7 @@ async def get_summary(message: types.Message):
         await message.answer(
             "К сожалению, ты написал слишком мало для полноценного отчёта. Давай постараемся добавить всех друзей!"
         )
-    elif ratings.count(3) / len(ratings) > 0.6:
+    elif ratings.count(3) / len(ratings) >= 0.6:
         await message.answer(
             make_type_str(
                 "Сердце компании",
@@ -290,7 +290,7 @@ async def get_summary(message: types.Message):
             ),
             parse_mode=ParseMode.HTML,
         )
-    elif ratings.count(2) / len(ratings) > 0.5:
+    elif ratings.count(2) / len(ratings) >= 0.5:
         await message.answer(
             make_type_str(
                 "Социальный организатор",
@@ -306,9 +306,9 @@ async def get_summary(message: types.Message):
             parse_mode=ParseMode.HTML,
         )
     elif (
-        ratings.count(3) / len(ratings) > 0.25
-        and ratings.count(2) / len(ratings) > 0.25
-        and ratings.count(1) / len(ratings) > 0.25
+        ratings.count(3) / len(ratings) >= 0.25
+        and ratings.count(2) / len(ratings) >= 0.25
+        and ratings.count(1) / len(ratings) >= 0.25
     ):
         await message.answer(
             make_type_str(
@@ -325,7 +325,7 @@ async def get_summary(message: types.Message):
             parse_mode=ParseMode.HTML,
         )
     elif (
-        ratings.count(3) / len(ratings) > 0.4 and ratings.count(1) / len(ratings) > 0.3
+        ratings.count(3) / len(ratings) >= 0.4 and ratings.count(1) / len(ratings) >= 0.3
     ):
         await message.answer(
             make_type_str(
@@ -342,8 +342,8 @@ async def get_summary(message: types.Message):
             parse_mode=ParseMode.HTML,
         )
     elif (
-        abs(ratings.count(3) - ratings.count(2)) / len(ratings) < 0.2
-        and abs(ratings.count(2) - ratings.count(1)) / len(ratings) < 0.2
+        abs(ratings.count(3) - ratings.count(2)) / len(ratings) <= 0.3
+        and abs(ratings.count(2) - ratings.count(1)) / len(ratings) <= 0.3
     ):
         await message.answer(
             make_type_str(
