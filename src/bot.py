@@ -254,7 +254,7 @@ async def get_usS(message: types.Message):
     all_users_and_rating = "\n".join(
         f"@{link.username_to} - {rating_to_text(link.rating)}" for link in links
     )
-    await message.answer(all_users_and_rating)
+    await message.answer(all_users_and_rating, reply_markup=rkb)
 
 
 def make_type_str(type: str, profile: str, strong_sides: List[str], recomendation: str):
