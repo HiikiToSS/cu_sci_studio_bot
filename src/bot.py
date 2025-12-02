@@ -228,7 +228,7 @@ async def process_living(
 
 async def start_survey(message: types.Message):
     await message.answer(explaining_links_message, parse_mode=ParseMode.HTML)
-    await message.answer("Укажи юзернеймы друзей (@username)", reply_markup=rkb)
+    await message.answer("Укажи юзернейм друга (@username)", reply_markup=rkb)
 
 
 def rating_to_text(rating: int) -> str:
