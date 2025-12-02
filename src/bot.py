@@ -31,6 +31,10 @@ bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
 
+class StartingCallback(callback_data.CallbackData, prefix="start"):
+    pass
+
+
 class LinkCallback(callback_data.CallbackData, prefix="link"):
     username_to: str
     rating: int
@@ -109,12 +113,30 @@ class AddingUser(StatesGroup):
 
 @dp.message(CommandStart())
 async def start_handler(message: types.Message, state: FSMContext):
-    await message.answer(starting_message, parse_mode=ParseMode.HTML)
-    if await userdb.get_user(message.from_user.username) is not None:
-        await start_survey(message)
+    await message.answer(
+        starting_message,
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="Далее", callback_data=StartingCallback().pack()
+                    )
+                ]
+            ]
+        ),
+        parse_mode=ParseMode.HTML,
+    )
+
+
+@dp.callback_query(StartingCallback.filter())
+async def next_handler(
+    query: CallbackQuery, callback_data: StartingCallback, state: FSMContext
+):
+    if await userdb.get_user(query.from_user.username) is not None:
+        await start_survey(query.message)
         return
     await state.set_state(AddingUser.sex)
-    await question_sex(message, state)
+    await question_sex(query.message, state)
 
 
 @dp.message(AddingUser.sex)
