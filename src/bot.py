@@ -367,7 +367,7 @@ async def get_summary(message: types.Message):
 async def get_count(message: types.Message):
     count = await userdb.count_users()
     await message.answer(
-        f"Ботом уже воспользовались {count} человек{'а' if count % 10 > 2 and count % 10 < 5 else ''}!"
+        f"Ботом уже воспользовались {count} человек{'а' if count % 10 > 2 and count % 10 < 5 else ''}!\nНапоминаю, что для участия в розыгрыше нужно подписаться на @campusdna"
     )
 
 
