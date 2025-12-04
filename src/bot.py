@@ -195,13 +195,21 @@ async def process_living(
 async def explaining_links(message: types.Message):
     await message.answer(
         templates.explaining_links_message,
-        callback_data=callbacks.TypeInfoCallback().pack(),
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="Далее", callback_data=callbacks.TypeInfoCallback().pack()
+                    )
+                ]
+            ]
+        ),
     )
 
 
-@dp.callback_query(callbacks.TypeInfoCallback)
+@dp.callback_query(callbacks.TypeInfoCallback.filter())
 async def start_survey(query: CallbackQuery, callback_data: callbacks.TypeInfoCallback):
-    await query.answer(
+    await query.message.answer(
         "Напиши юзернейм (@username) и я предложу тебе выбрать его категорию",
         reply_markup=rkb,
     )
@@ -381,7 +389,7 @@ async def user_name_checker(message: types.Message):
 async def process_data(query: CallbackQuery, callback_data: callbacks.LinkCallback):
     from_username = query.from_user.username
     if await userdb.get_user(from_username) is None:
-        await query.answer("Похоже тебе нужно перезапустить бота: /start")
+        await query.message.answer("Похоже тебе нужно перезапустить бота: /start")
         return
     await userdb.add_link(
         from_username,
