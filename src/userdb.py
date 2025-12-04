@@ -1,14 +1,9 @@
 import asyncio
-import os
-from tkinter import W
 from typing import Iterable, List, Optional
 
 import pymongo.asynchronous.collection as pymongo_collection
 import pymongo.asynchronous.database as pymongo_database
-from dotenv import load_dotenv
-from pymongo import AsyncMongoClient
 from pymongo.asynchronous.cursor import AsyncCursor
-from pymongo.errors import ServerSelectionTimeoutError
 
 from .models import Link, User, Username
 
@@ -49,11 +44,11 @@ class UserDB:
 
     async def get_users(
         self,
-        username: Username | Iterable[Username] | None,
-        links_less_than: Optional[int],
+        username: Username | Iterable[Username] | None = None,
+        links_less_than: Optional[int] = None,
     ) -> AsyncCursor:
         query = {}
-        if username is List:
+        if isinstance(username, (list, tuple)):
             query["$or"] = [{"username": i} for i in username]
         elif username:
             query["username"] = username

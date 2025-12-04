@@ -65,7 +65,7 @@ class AddingUser(StatesGroup):
     living_place = State()
 
 
-@dp.message(CommandStart(deep_link_encoded=True))
+@dp.message(CommandStart(deep_link=True, deep_link_encoded=True))
 async def start_handler(
     message: types.Message, command: CommandObject, state: FSMContext
 ):
@@ -74,7 +74,7 @@ async def start_handler(
     if command.args and command.args != message.from_user.username:
         user = await userdb.get_user(message.from_user.username)
         if user is None:
-            await state.set_data(invited_by=command.args)
+            await state.update_data(invited_by=command.args)
             await userdb.add_invited(command.args, message.from_user.username)
         elif len(user["_links"]) < 5 and user["invited_by"] is None:
             await userdb.add_invited_by(message.from_user.username, command.args)
@@ -211,6 +211,8 @@ async def process_living(
     await userdb.add_user(
         User(
             username=query.from_user.username,
+            userid=query.from_user.id,
+            chatid=query.message.chat.id,
             sex=state_data["sex"],
             course=state_data["course"],
             living=callback_data.living,
@@ -313,7 +315,7 @@ async def process_data(query: CallbackQuery, callback_data: callbacks.LinkCallba
             f"✅ @{callback_data.username_to} добавлен как {rating_to_text(callback_data.rating).lower()}",
             "\n📝 Чтобы добавить ещё друга — просто введи следующий юзернейм.",
             "\n🔁 Чем больше друзей ты добавишь — тем точнее будет твой социальный портрет!",
-        ),
+        ).as_html(),
         reply_markup=None,
     )
 
@@ -483,9 +485,12 @@ async def get_referral(message: types.Message):
     points = 0
     async for user in users:
         str_list.append(
-            "• @" + user.username + " - " + "🟡" if len(user["_links"]) < 5 else "🟢"
+            "• @"
+            + user["username"]
+            + " - "
+            + ("🟡" if len(user.get("_links", [])) < 5 else "🟢")
         )
-        if len(user["_links"]) >= 5:
+        if len(user.get("_links", [])) >= 5:
             points += 1
 
     await message.answer_photo(
