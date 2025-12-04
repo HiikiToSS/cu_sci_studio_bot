@@ -351,11 +351,16 @@ async def get_usS(message: types.Message):
     await message.answer(all_users_and_rating, reply_markup=rkb)
 
 
+@dp.message(F.text == "Узнать тип личности")
+async def redirect_summary(message: types.Message):
+    await get_summary(message)
+
 @dp.message(F.text == "Тип личности")
 async def get_summary(message: types.Message):
     await userdb.add_ids_to_user(
         message.from_user.username, message.from_user.id, message.chat.id
     )
+
     links = await userdb.get_links(message.from_user.username)
     ratings = [i.rating for i in links]
     if len(ratings) < 5:
