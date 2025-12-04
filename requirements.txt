@@ -3,3 +3,5 @@ asyncio>=4.0.0
 dotenv>=0.9.9
 pydantic>=2.11.10
 pymongo>=4.15.4
+pymongo>=4.15.4
+qrcode[pil]>=8.2

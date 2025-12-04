@@ -1,5 +1,5 @@
 import re
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Optional
 
 from pydantic import AfterValidator, BaseModel, Field
 
@@ -34,9 +34,5 @@ class User(BaseModel):
 
     _links: list[Link] = []
 
-    def set_link(self, link: Link):
-        for i in self._links:
-            if i.username_to == link.username_to:
-                i = link
-                return
-        self._links.append(link)
+    invited: list[Username] = []
+    invited_by: Optional[Username] = None

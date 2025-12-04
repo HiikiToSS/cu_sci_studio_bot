@@ -1,22 +1,28 @@
+import io
 import os
+from typing import List
 
+import qrcode
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.filters import CommandStart
+from aiogram.filters import CommandObject, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.pymongo import PyMongoStorage
 from aiogram.types import (
+    BufferedInputFile,
     CallbackQuery,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     KeyboardButton,
     ReplyKeyboardMarkup,
 )
+from aiogram.utils.deep_linking import create_start_link
 from aiogram.utils.formatting import as_list
 from dotenv import load_dotenv
 from pymongo import AsyncMongoClient
+from qrcode import QRCode
 
 from . import callbacks, templates
 from .models import Link, User, check_tg_username
@@ -43,21 +49,37 @@ async def main():
 
 rkb = ReplyKeyboardMarkup(
     keyboard=[
-        [KeyboardButton(text="Мои контакты")],
-        [KeyboardButton(text="Узнать тип личности")],
-        [KeyboardButton(text="Кол-во пользователей")],
+        [KeyboardButton(text="Мои контакты"), KeyboardButton(text="Тип личности")],
+        [
+            KeyboardButton(text="Кол-во пользователей"),
+            KeyboardButton(text="Реферальная система"),
+        ],
     ]
 )
 
 
 class AddingUser(StatesGroup):
+    starting = State()
     sex = State()
     course = State()
     living_place = State()
 
 
-@dp.message(CommandStart())
-async def start_handler(message: types.Message, state: FSMContext):
+@dp.message(CommandStart(deep_link_encoded=True))
+async def start_handler(
+    message: types.Message, command: CommandObject, state: FSMContext
+):
+    await state.set_state(AddingUser.starting)
+
+    if command.args and command.args != message.from_user.username:
+        user = await userdb.get_user(message.from_user.username)
+        if user is None:
+            await state.set_data(invited_by=command.args)
+            await userdb.add_invited(command.args, message.from_user.username)
+        elif len(user["_links"]) < 5 and user["invited_by"] is None:
+            await userdb.add_invited_by(message.from_user.username, command.args)
+            await userdb.add_invited(command.args, message.from_user.username)
+
     await message.answer(
         templates.starting_message,
         reply_markup=InlineKeyboardMarkup(
@@ -192,6 +214,7 @@ async def process_living(
             sex=state_data["sex"],
             course=state_data["course"],
             living=callback_data.living,
+            invited_by=state_data.get("invited_by"),
         )
     )
     await state.clear()
@@ -231,6 +254,70 @@ def rating_to_text(rating: int) -> str:
     raise Exception("Rating_to_text получил invalid значение")
 
 
+@dp.message(F.text[0] == "@")
+async def user_name_checker(message: types.Message):
+    userdb.add_ids_to_user(
+        message.from_user.username, message.from_user.id, message.chat.id
+    )
+    msg = (message.text).strip()
+    try:
+        username_to = check_tg_username(msg)
+    except ValueError:
+        await message.answer('Напиши юзернейм в формате "@username"')
+        return
+
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Близкий друг",
+                    callback_data=callbacks.LinkCallback(
+                        username_to=username_to, rating=3
+                    ).pack(),
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="Приятель",
+                    callback_data=callbacks.LinkCallback(
+                        username_to=username_to, rating=2
+                    ).pack(),
+                ),
+            ],
+            [
+                InlineKeyboardButton(
+                    text="Знакомый",
+                    callback_data=callbacks.LinkCallback(
+                        username_to=username_to, rating=1
+                    ).pack(),
+                ),
+            ],
+        ]
+    )
+
+    await message.answer("Кто он для тебя?", reply_markup=kb)
+
+
+@dp.callback_query(callbacks.LinkCallback.filter())
+async def process_data(query: CallbackQuery, callback_data: callbacks.LinkCallback):
+    from_username = query.from_user.username
+    if await userdb.get_user(from_username) is None:
+        await query.message.answer("Похоже тебе нужно перезапустить бота: /start")
+        return
+    await userdb.add_link(
+        from_username,
+        Link(username_to=callback_data.username_to, rating=callback_data.rating),
+    )
+    await query.message.edit_text(
+        as_list(
+            f"✅ @{callback_data.username_to} добавлен как {rating_to_text(callback_data.rating).lower()}",
+            "\n📝 Чтобы добавить ещё друга — просто введи следующий юзернейм.",
+            "\n🔁 Чем больше друзей ты добавишь — тем точнее будет твой социальный портрет!",
+        ),
+        reply_markup=None,
+    )
+
+
 @dp.message(F.text == "Мои контакты")
 async def get_usS(message: types.Message):
     await userdb.add_ids_to_user(
@@ -253,7 +340,7 @@ async def get_usS(message: types.Message):
     await message.answer(all_users_and_rating, reply_markup=rkb)
 
 
-@dp.message(F.text == "Узнать тип личности")
+@dp.message(F.text == "Тип личности")
 async def get_summary(message: types.Message):
     await userdb.add_ids_to_user(
         message.from_user.username, message.from_user.id, message.chat.id
@@ -354,65 +441,60 @@ async def get_count(message: types.Message):
     )
 
 
-@dp.message(F.text[0] == "@")
-async def user_name_checker(message: types.Message):
-    userdb.add_ids_to_user(
+@dp.message(F.text == "Реферальная система")
+async def get_referral(message: types.Message):
+    def generate_message(
+        link: str, str_list: List[str] = None, points: int = None
+    ) -> str:
+        message = (
+            "**Приглашай людей и участвуй в дополнительном розыгрыше\\!**\n"
+            + f"Ссылка по которой, ты можешь добавить своих друзей: `{link}`\n"
+        )
+        if not message:
+            message += "Пока что никто не переходил по ссылке"
+        return message
+
+    await userdb.add_ids_to_user(
         message.from_user.username, message.from_user.id, message.chat.id
     )
-    msg = (message.text).strip()
-    try:
-        username_to = check_tg_username(msg)
-    except ValueError:
-        await message.answer('Напиши юзернейм в формате "@username"')
+
+    main_user = await userdb.get_user(message.from_user.username)
+    if "_links" not in main_user or len(main_user["_links"]) < 5:
+        await message.answer("Для доступа к реферальной программе отметь 5+ связей")
         return
 
-    kb = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text="Близкий друг",
-                    callback_data=callbacks.LinkCallback(
-                        username_to=username_to, rating=3
-                    ).pack(),
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    text="Приятель",
-                    callback_data=callbacks.LinkCallback(
-                        username_to=username_to, rating=2
-                    ).pack(),
-                ),
-            ],
-            [
-                InlineKeyboardButton(
-                    text="Знакомый",
-                    callback_data=callbacks.LinkCallback(
-                        username_to=username_to, rating=1
-                    ).pack(),
-                ),
-            ],
-        ]
-    )
+    link = await create_start_link(bot, message.from_user.username, encode=True)
 
-    await message.answer("Кто он для тебя?", reply_markup=kb)
+    img = qrcode.make(link)
+    img_byte_arr = io.BytesIO()
+    img.save(img_byte_arr, format="PNG")
+    img_byte_arr = img_byte_arr.getvalue()
+    qr_file = BufferedInputFile(img_byte_arr, f"qr_{message.from_user.id}.png")
 
-
-@dp.callback_query(callbacks.LinkCallback.filter())
-async def process_data(query: CallbackQuery, callback_data: callbacks.LinkCallback):
-    from_username = query.from_user.username
-    if await userdb.get_user(from_username) is None:
-        await query.message.answer("Похоже тебе нужно перезапустить бота: /start")
+    if "invited" not in main_user:
+        await message.answer_photo(
+            photo=qr_file,
+            caption=generate_message(link),
+            parse_mode=ParseMode.MARKDOWN_V2,
+        )
         return
-    await userdb.add_link(
-        from_username,
-        Link(username_to=callback_data.username_to, rating=callback_data.rating),
+    users = await userdb.get_users(username=main_user["invited"])
+    str_list = []
+    points = 0
+    async for user in users:
+        str_list.append(
+            "• @" + user.username + " - " + "🟡" if len(user["_links"]) < 5 else "🟢"
+        )
+        if len(user["_links"]) >= 5:
+            points += 1
+
+    await message.answer_photo(
+        photo=qr_file,
+        caption=generate_message(link, str_list, points),
+        parse_mode=ParseMode.MARKDOWN_V2,
     )
-    await query.message.edit_text(
-        as_list(
-            f"✅ @{callback_data.username_to} добавлен как {rating_to_text(callback_data.rating).lower()}",
-            "\n📝 Чтобы добавить ещё друга — просто введи следующий юзернейм.",
-            "\n🔁 Чем больше друзей ты добавишь — тем точнее будет твой социальный портрет!",
-        ),
-        reply_markup=None,
+    await message.answer(
+        "Давай посмотрим, кто перешёл по твоей ссылке\n"
+        + "\n".join(str_list)
+        + f"\nВсего баллов: {points}"
     )

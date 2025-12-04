@@ -1,6 +1,7 @@
 import asyncio
 import os
-from typing import List, Optional
+from tkinter import W
+from typing import Iterable, List, Optional
 
 import pymongo.asynchronous.collection as pymongo_collection
 import pymongo.asynchronous.database as pymongo_database
@@ -42,14 +43,23 @@ class UserDB:
             return []
         return [Link.model_validate(i) for i in all_friends["_links"]]
 
-    async def get_user(self, username: Username) -> Optional[User]:
+    async def get_user(self, username: Username) -> Optional[dict]:
         all_user_data = await self.collection.find_one({"username": username})
         return all_user_data
 
-    async def get_users(self, links_less_than: int) -> AsyncCursor:
-        all_user_data = self.collection.find(
-            {f"_links.{links_less_than}": {"$exists": False}}
-        )
+    async def get_users(
+        self,
+        username: Username | Iterable[Username] | None,
+        links_less_than: Optional[int],
+    ) -> AsyncCursor:
+        query = {}
+        if username is List:
+            query["$or"] = [{"username": i} for i in username]
+        elif username:
+            query["username"] = username
+        if links_less_than:
+            query[f"_links.{links_less_than}"] = {"$exists": False}
+        all_user_data = self.collection.find(query)
         return all_user_data
 
     async def add_link(self, username: Username, link: Link) -> None:
@@ -81,9 +91,21 @@ class UserDB:
 
     # NOTE: This is temporary function for fixing current database
     # And should be deleted someday because of obvious performance loss
-    async def add_ids_to_user(self, username: str, userid: int, chatid: int) -> None:
+    async def add_ids_to_user(
+        self, username: Username, userid: int, chatid: int
+    ) -> None:
         await self.collection.update_one(
             {"username": username}, {"$set": {"userid": userid, "chatid": chatid}}
         )
 
+    async def add_invited(self, username: Username, username_invited: Username) -> None:
+        await self.collection.update_one(
+            {"username": username}, {"$addToSet": {"invited": username_invited}}
+        )
 
+    async def add_invited_by(
+        self, username: Username, username_invited_by: Username
+    ) -> None:
+        await self.collection.update_one(
+            {"username": username}, {"$set": {"invited_by": username_invited_by}}
+        )
