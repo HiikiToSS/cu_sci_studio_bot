@@ -1,11 +1,13 @@
 import re
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Optional
 
 from pydantic import AfterValidator, BaseModel, Field
 
 
 def check_tg_username(username: str) -> str:
     username = username.strip().strip("@")
+    if len(username) < 5:
+        raise ValueError(f"{username} is not valid username")
     pattern = r"^[A-z0-9_]+$"
     if re.match(pattern, username):
         return username
@@ -32,11 +34,7 @@ class User(BaseModel):
     course: int = Field(ge=1, le=2)
     living: Living
 
-    _links: list[Link] = []
-
-    def set_link(self, link: Link):
-        for i in self._links:
-            if i.username_to == link.username_to:
-                i = link
-                return
-        self._links.append(link)
+    links: list[Link] = []
+    
+    invited: list[Username] = []
+    invited_by: Optional[Username] = None
