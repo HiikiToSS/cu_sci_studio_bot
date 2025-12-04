@@ -44,7 +44,7 @@ dp = Dispatcher(storage=PyMongoStorage(client, db_name="cu_graph_bot"))
 
 
 async def main():
-    global userdb, bot, dp
+    global userdb
     userdb = UserDB(client)
     await dp.start_polling(bot)
 
