@@ -16,6 +16,7 @@ from aiogram.types import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     KeyboardButton,
+    ReactionTypeEmoji,
     ReplyKeyboardMarkup,
 )
 from aiogram.utils.deep_linking import create_start_link
@@ -273,6 +274,12 @@ async def user_name_checker(message: types.Message):
         username_to = check_tg_username(msg)
     except ValueError:
         await message.answer('Напиши юзернейм в формате "@username"')
+        return
+    if username_to == message.from_user.username:
+        await message.react([ReactionTypeEmoji(emoji="🥰")])
+        await message.answer(
+            "Любовь к себе это, конечно, хорошо, но, пожалуйста, добавь кого-нибудь другого"
+        )
         return
 
     kb = InlineKeyboardMarkup(
