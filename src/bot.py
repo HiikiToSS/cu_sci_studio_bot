@@ -2,6 +2,7 @@ import io
 import os
 from typing import List
 
+from aiogram.utils.payload import decode_payload
 import qrcode
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.client.default import DefaultBotProperties
@@ -67,8 +68,20 @@ class AddingUser(StatesGroup):
 
 
 @dp.message(CommandStart())
-async def start_handler(message: types.Message, state: FSMContext):
+async def start_handler(
+    message: types.Message, command: CommandObject, state: FSMContext
+):
     await state.set_state(AddingUser.starting)
+    if command.args:
+        linked_by = decode_payload(command.args)
+        if linked_by != message.from_user.username:
+            user = await userdb.get_user(message.from_user.username)
+            if user is None:
+                await state.update_data(invited_by=linked_by)
+                await userdb.add_invited(linked_by, message.from_user.username)
+            elif len(user.links) < 5 and user.invited_by is None:
+                await userdb.add_invited_by(message.from_user.username, linked_by)
+                await userdb.add_invited(linked_by, message.from_user.username)
 
     await message.answer(
         templates.starting_message,
@@ -82,24 +95,6 @@ async def start_handler(message: types.Message, state: FSMContext):
             ]
         ),
     )
-
-
-@dp.message(CommandStart(deep_link=True, deep_link_encoded=True))
-async def start_handler_deep_link(
-    message: types.Message, command: CommandObject, state: FSMContext
-):
-    await state.set_state(AddingUser.starting)
-
-    if command.args and command.args != message.from_user.username:
-        user = await userdb.get_user(message.from_user.username)
-        if user is None:
-            await state.update_data(invited_by=command.args)
-            await userdb.add_invited(command.args, message.from_user.username)
-        elif len(user["links"]) < 5 and user["invited_by"] is None:
-            await userdb.add_invited_by(message.from_user.username, command.args)
-            await userdb.add_invited(command.args, message.from_user.username)
-
-    await start_handler(message, state)
 
 
 @dp.callback_query(callbacks.StartingCallback.filter())
@@ -363,14 +358,14 @@ async def get_summary(message: types.Message):
     )
     links = await userdb.get_links(message.from_user.username)
     ratings = [i.rating for i in links]
-    p1 = ratings.count(1) / len(ratings)
-    p2 = ratings.count(2) / len(ratings)
-    p3 = ratings.count(3) / len(ratings)
     if len(ratings) < 5:
         await message.answer(
             "К сожалению, ты написал слишком мало для полноценного отчёта. Давай постараемся добавить всех друзей!"
         )
-    elif p3 >= 0.5:
+    p1 = ratings.count(1) / len(ratings)
+    p2 = ratings.count(2) / len(ratings)
+    p3 = ratings.count(3) / len(ratings)
+    if p3 >= 0.5:
         await message.answer(
             templates.make_type_str(
                 "Сердце компании",
@@ -463,9 +458,13 @@ async def get_referral(message: types.Message):
         link: str, str_list: List[str] = None, points: int = None
     ) -> str:
         message = (
-            "**Приглашай людей и участвуй в дополнительном розыгрыше\\!**\n"
-            + f"Ссылка по которой, ты можешь добавить своих друзей: `{link}`\n"
+            "**🚀 Участвуй в турнире с реферальной системой\\!**\n"
+            + f"Твоя личная ссылка для приглашений:\n`{link}`\n\\(Нажми чтобы скопировать\\)\n\n"
+            + "✨ Каждый приглашённый друг \\= \\+1 к твоим шансам на победу\\!\n"
+            + "Главное — чтобы он указал минимум 5 связей\n"
+            + "Приглашение засчитывается, если у человека заполнено меньше 5 связей"
         )
+
         if not message:
             message += "Пока что никто не переходил по ссылке"
         return message
@@ -476,7 +475,7 @@ async def get_referral(message: types.Message):
 
     main_user = await userdb.get_user(message.from_user.username)
     if len(main_user.links) < 5:
-        await message.answer("Для доступа к реферальной программе отметь 5+ связей")
+        await message.answer("Для доступа к реферальной программе отметь 5\\+ связей")
         return
 
     link = await create_start_link(bot, message.from_user.username, encode=True)
