@@ -65,20 +65,9 @@ class AddingUser(StatesGroup):
     living_place = State()
 
 
-@dp.message(CommandStart(deep_link=True, deep_link_encoded=True))
-async def start_handler(
-    message: types.Message, command: CommandObject, state: FSMContext
-):
+@dp.message(CommandStart())
+async def start_handler(message: types.Message, state: FSMContext):
     await state.set_state(AddingUser.starting)
-
-    if command.args and command.args != message.from_user.username:
-        user = await userdb.get_user(message.from_user.username)
-        if user is None:
-            await state.update_data(invited_by=command.args)
-            await userdb.add_invited(command.args, message.from_user.username)
-        elif len(user["_links"]) < 5 and user["invited_by"] is None:
-            await userdb.add_invited_by(message.from_user.username, command.args)
-            await userdb.add_invited(command.args, message.from_user.username)
 
     await message.answer(
         templates.starting_message,
@@ -92,6 +81,24 @@ async def start_handler(
             ]
         ),
     )
+
+
+@dp.message(CommandStart(deep_link=True, deep_link_encoded=True))
+async def start_handler_deep_link(
+    message: types.Message, command: CommandObject, state: FSMContext
+):
+    await state.set_state(AddingUser.starting)
+
+    if command.args and command.args != message.from_user.username:
+        user = await userdb.get_user(message.from_user.username)
+        if user is None:
+            await state.update_data(invited_by=command.args)
+            await userdb.add_invited(command.args, message.from_user.username)
+        elif len(user["links"]) < 5 and user["invited_by"] is None:
+            await userdb.add_invited_by(message.from_user.username, command.args)
+            await userdb.add_invited(command.args, message.from_user.username)
+
+    await start_handler(message, state)
 
 
 @dp.callback_query(callbacks.StartingCallback.filter())
@@ -258,7 +265,7 @@ def rating_to_text(rating: int) -> str:
 
 @dp.message(F.text[0] == "@")
 async def user_name_checker(message: types.Message):
-    userdb.add_ids_to_user(
+    await userdb.add_ids_to_user(
         message.from_user.username, message.from_user.id, message.chat.id
     )
     msg = (message.text).strip()
@@ -461,7 +468,7 @@ async def get_referral(message: types.Message):
     )
 
     main_user = await userdb.get_user(message.from_user.username)
-    if "_links" not in main_user or len(main_user["_links"]) < 5:
+    if len(main_user.links) < 5:
         await message.answer("Для доступа к реферальной программе отметь 5+ связей")
         return
 
@@ -473,24 +480,21 @@ async def get_referral(message: types.Message):
     img_byte_arr = img_byte_arr.getvalue()
     qr_file = BufferedInputFile(img_byte_arr, f"qr_{message.from_user.id}.png")
 
-    if "invited" not in main_user:
+    if not main_user.invited:
         await message.answer_photo(
             photo=qr_file,
             caption=generate_message(link),
             parse_mode=ParseMode.MARKDOWN_V2,
         )
         return
-    users = await userdb.get_users(username=main_user["invited"])
+    users = await userdb.get_users(username=main_user.invited)
     str_list = []
     points = 0
-    async for user in users:
+    for user in users:
         str_list.append(
-            "• @"
-            + user["username"]
-            + " - "
-            + ("🟡" if len(user.get("_links", [])) < 5 else "🟢")
+            "• @" + user.username + " - " + ("🟡" if len(user.links) < 5 else "🟢")
         )
-        if len(user.get("_links", [])) >= 5:
+        if len(user.links) >= 5:
             points += 1
 
     await message.answer_photo(

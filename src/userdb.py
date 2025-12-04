@@ -1,6 +1,7 @@
 import asyncio
 from typing import Iterable, List, Optional
 
+from aiogram.types import user
 import pymongo.asynchronous.collection as pymongo_collection
 import pymongo.asynchronous.database as pymongo_database
 from pymongo.asynchronous.cursor import AsyncCursor
@@ -19,7 +20,11 @@ class UserDB:
     def __init__(self, client):
         self.db = client.get_database("cu_graph_bot")
         self.collection = self.db.get_collection("users")
-        asyncio.create_task(self.collection.create_index("username", unique=True))
+        asyncio.gather(
+            self.collection.create_index("username", unique=True),
+            # NOTE: Also temporary
+            self.collection.update_many({}, {"$rename": {"_links": "links"}}),
+        )
 
     async def add_user(self, user: User) -> None:
         current_user_to_add = await self.collection.find_one(
@@ -34,13 +39,24 @@ class UserDB:
         all_friends = await self.collection.find_one({"username": username})
         if all_friends is None:
             raise UserNotExist
-        if "_links" not in all_friends:
+        if "links" not in all_friends:
             return []
-        return [Link.model_validate(i) for i in all_friends["_links"]]
+        links_list = []
+        pop_links = []
+        for i in all_friends["links"]:
+            try:
+                links_list.append(Link.model_validate(i))
+            except:
+                pop_links.append(i["username_to"])
+        await self.collection.update_one(
+            {"username": username},
+            {"$pull": {"links": {"username_to": {"$in": pop_links}}}},
+        )
+        return links_list
 
-    async def get_user(self, username: Username) -> Optional[dict]:
-        all_user_data = await self.collection.find_one({"username": username})
-        return all_user_data
+    async def get_user(self, username: Username) -> Optional[User]:
+        user_data = await self.collection.find_one({"username": username})
+        return User.model_validate(user_data) if user_data is not None else None
 
     async def get_users(
         self,
@@ -53,24 +69,25 @@ class UserDB:
         elif username:
             query["username"] = username
         if links_less_than:
-            query[f"_links.{links_less_than}"] = {"$exists": False}
+            query[f"links.{links_less_than}"] = {"$exists": False}
         all_user_data = self.collection.find(query)
+        all_user_data = [User.model_validate(i) async for i in all_user_data]
         return all_user_data
 
     async def add_link(self, username: Username, link: Link) -> None:
         current_user = await self.collection.find_one({"username": username})
         if current_user is None:
             raise UserNotExist
-        for ind, ilink in enumerate(current_user.get("_links", [])):
+        for ind, ilink in enumerate(current_user.get("links", [])):
             if ilink["username_to"] == link.username_to:
                 await self.collection.update_one(
                     {"username": username},
-                    {"$set": {f"_links.{ind}.rating": link.rating}},
+                    {"$set": {f"links.{ind}.rating": link.rating}},
                 )
                 return
         else:
             await self.collection.update_one(
-                {"username": username}, {"$push": {"_links": link.model_dump()}}
+                {"username": username}, {"$push": {"links": link.model_dump()}}
             )
 
     async def count_users(self, links_more_than: int = 4) -> int:
@@ -78,7 +95,7 @@ class UserDB:
             [
                 i
                 async for i in self.collection.find(
-                    {f"_links.{links_more_than}": {"$exists": True}}
+                    {f"links.{links_more_than}": {"$exists": True}}
                 )
             ]
         )
