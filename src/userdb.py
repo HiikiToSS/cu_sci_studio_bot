@@ -30,7 +30,7 @@ class UserDB:
             self.client = AsyncMongoClient(MONGODB_HOST, serverSelectionTimeoutMS=5000)
             self.db = self.client.get_database("cu_graph_bot")
             self.collection = self.db.get_collection("users")
-            asyncio.run(self.collection.create_index("username", unique=True))
+            asyncio.create_task(self.collection.create_index("username", unique=True))
         except ServerSelectionTimeoutError as e:
             print("Ошибка подключения к MongoDB:", e)
             raise e
@@ -89,5 +89,11 @@ class UserDB:
         )
         return count
 
+    # NOTE: This is temporary function for fixing current database
+    # And should be deleted someday because of obvious performance loss
+    async def add_ids_to_user(self, username: str, userid: int, chatid: int) -> None:
+        await self.collection.update_one(
+            {"username": username}, {"$set": {"userid": userid, "chatid": chatid}}
+        )
 
-userdb = UserDB()
+

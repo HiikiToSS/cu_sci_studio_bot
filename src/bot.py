@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 
 from . import callbacks, templates
 from .models import Link, User, check_tg_username
-from .userdb import userdb
+from .userdb import UserDB
 
 load_dotenv()
 
@@ -28,6 +28,12 @@ if TOKEN is None:
 
 bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
+
+
+async def main():
+    global userdb
+    userdb = UserDB()
+    await dp.start_polling(bot)
 
 
 rkb = ReplyKeyboardMarkup(
@@ -213,6 +219,9 @@ def rating_to_text(rating: int) -> str:
 
 @dp.message(F.text == "Мои контакты")
 async def get_usS(message: types.Message):
+    await userdb.add_ids_to_user(
+        message.from_user.username, message.from_user.id, message.chat.id
+    )
     links = await userdb.get_links(message.from_user.username)
     if len(links) == 0:
         await message.answer("Ты ещё не добавил связи!\nВведи юзернейм (@username)")
@@ -225,6 +234,9 @@ async def get_usS(message: types.Message):
 
 @dp.message(F.text == "Узнать тип личности")
 async def get_summary(message: types.Message):
+    await userdb.add_ids_to_user(
+        message.from_user.username, message.from_user.id, message.chat.id
+    )
     links = await userdb.get_links(message.from_user.username)
     ratings = [i.rating for i in links]
     p1 = ratings.count(1) / len(ratings)
@@ -312,6 +324,9 @@ async def get_summary(message: types.Message):
 
 @dp.message(F.text == "Кол-во пользователей")
 async def get_count(message: types.Message):
+    await userdb.add_ids_to_user(
+        message.from_user.username, message.from_user.id, message.chat.id
+    )
     count = await userdb.count_users()
     await message.answer(
         f"Ботом уже воспользовались {count} человек{'а' if count % 10 >= 2 and count % 10 < 5 else ''}!\nНапоминаю, что для участия в розыгрыше нужно подписаться на @campusdna"
@@ -320,6 +335,9 @@ async def get_count(message: types.Message):
 
 @dp.message(F.text[0] == "@")
 async def user_name_checker(message: types.Message):
+    userdb.add_ids_to_user(
+        message.from_user.username, message.from_user.id, message.chat.id
+    )
     msg = (message.text).strip()
     try:
         username_to = check_tg_username(msg)

@@ -23,11 +23,15 @@ class Link(BaseModel):
 
 
 class User(BaseModel):
+    userid: int
+    chatid: int
+
     username: Username
-    # TODO: Add sex, course, etc.
+
     sex: Sex
     course: int = Field(ge=1, le=2)
     living: Living
+
     _links: list[Link] = []
 
     def set_link(self, link: Link):
