@@ -1,23 +1,22 @@
 import os
-from typing import List
 
-from aiogram import Bot, Dispatcher, F, html, types
+from aiogram import Bot, Dispatcher, F, types
+from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.filters import Command, CommandStart, callback_data
+from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (
-    BotCommand,
     CallbackQuery,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     KeyboardButton,
     ReplyKeyboardMarkup,
-    user,
 )
-from aiogram.utils.formatting import Bold, CustomEmoji, Text
+from aiogram.utils.formatting import as_list
 from dotenv import load_dotenv
 
+from . import callbacks, templates
 from .models import Link, User, check_tg_username
 from .userdb import userdb
 
@@ -27,29 +26,8 @@ TOKEN = os.getenv("TG_BOT_TOKEN")
 if TOKEN is None:
     raise Exception("Couldn't find TG_BOT_TOKEN")
 
-bot = Bot(token=TOKEN)
+bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
-
-
-class StartingCallback(callback_data.CallbackData, prefix="start"):
-    pass
-
-
-class LinkCallback(callback_data.CallbackData, prefix="link"):
-    username_to: str
-    rating: int
-
-
-class SexCallback(callback_data.CallbackData, prefix="sex"):
-    sex: str
-
-
-class CourseCallback(callback_data.CallbackData, prefix="course"):
-    course: int
-
-
-class LivingCallback(callback_data.CallbackData, prefix="living"):
-    living: str
 
 
 rkb = ReplyKeyboardMarkup(
@@ -59,50 +37,6 @@ rkb = ReplyKeyboardMarkup(
         [KeyboardButton(text="Кол-во пользователей")],
     ]
 )
-
-starting_message = """🧬 ДОБРО ПОЖАЛОВАТЬ В CAMPUS DNA!
-
-Мы создаём первую карту социальных связей нашего университета. 
-Это исследование научной студии, и каждый участник получит:
-• Личный анализ социального типа
-• Место на интерактивной карте универа
-• Шанс выиграть КРУТЫЕ ПРИЗЫ 🎁
-
-🏆 <b>УСЛОВИЯ УЧАСТИЯ В РОЗЫГРЫШЕ:</b>
-
-1. ✅ <b>Подписаться на канал</b> @campusdna
-2. ✅ <b>Отметь 5+ друзей</b> и оцени вашу близость
-
-🎁 ПРИЗОВОЙ ФОНД:
-• 20 ПИЦЦ (1 пицца = 1 победитель)
-• ИГРУШКИ-МИНЬОНЫ 
-• МЕРЧ ОТ ЦУ И ПАРТНЁРОВ
-
-📢 <b>Следи за розыгрышами в канале:</b> @campusdna
-
-🧭 <b>ЧТО ДЕЛАТЬ ДАЛЬШЕ:</b>
-
-Сначала тебе нужно ввести базовые сведения: пол, курс, общежитие.
-Затем я попрошу тебя ввести юзернеймы твоих друзей в Telegram 
-и оценить вашу близость по шкале от 1 до 3.
-
-Чем больше друзей ты отметишь — тем точнее будет твой 
-социальный портрет и тем ценнее твой вклад в исследование!
-
-<i>Готов начать и узнать, кто ты в социальной сети университета?</i>"""
-
-explaining_links_message = """<u><b>⁉️ НА КАКИЕ ГРУППЫ МЫ ДЕЛИМ СВЯЗИ?</b></u>
-🔴 <b>1 — Друзья</b>
-<i>«С ними я провожу больше всего времени»</i>  
-Постоянное общение в универе и в мессенджерах. Видимся почти каждый день. Делимся личными новостями, поддерживаем друг друга. 
-
-🟡 <b>2 — Приятели</b>  
-<i>«Всегда подойду спросить: "Как дела? Как жизнь?"»</i>  
-Видимся несколько раз в неделю. Общаемся и про учебу, и про жизнь, иногда затрагиваем личное (но не глубокое). Можем вместе пообедать или поиграть в пин-понг.
-
-🔵 <b>3 — Знакомые</b>  
-<i>«Мы здороваемся в коридоре»</i> 
-Видимся изредка, общение короткое и ситуативное. В основном на учебные/повседневные темы."""
 
 
 class AddingUser(StatesGroup):
@@ -114,26 +48,25 @@ class AddingUser(StatesGroup):
 @dp.message(CommandStart())
 async def start_handler(message: types.Message, state: FSMContext):
     await message.answer(
-        starting_message,
+        templates.starting_message,
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[
                 [
                     InlineKeyboardButton(
-                        text="Далее", callback_data=StartingCallback().pack()
+                        text="Далее", callback_data=callbacks.StartingCallback().pack()
                     )
                 ]
             ]
         ),
-        parse_mode=ParseMode.HTML,
     )
 
 
-@dp.callback_query(StartingCallback.filter())
+@dp.callback_query(callbacks.StartingCallback.filter())
 async def next_handler(
-    query: CallbackQuery, callback_data: StartingCallback, state: FSMContext
+    query: CallbackQuery, callback_data: callbacks.StartingCallback, state: FSMContext
 ):
     if await userdb.get_user(query.from_user.username) is not None:
-        await start_survey(query.message)
+        await explaining_links(query.message)
         return
     await state.set_state(AddingUser.sex)
     await question_sex(query.message, state)
@@ -148,10 +81,12 @@ async def question_sex(message: types.Message, state: FSMContext):
             inline_keyboard=[
                 [
                     InlineKeyboardButton(
-                        text="Мужской", callback_data=SexCallback(sex="male").pack()
+                        text="Мужской",
+                        callback_data=callbacks.SexCallback(sex="male").pack(),
                     ),
                     InlineKeyboardButton(
-                        text="Женский", callback_data=SexCallback(sex="female").pack()
+                        text="Женский",
+                        callback_data=callbacks.SexCallback(sex="female").pack(),
                     ),
                 ]
             ]
@@ -159,9 +94,9 @@ async def question_sex(message: types.Message, state: FSMContext):
     )
 
 
-@dp.callback_query(SexCallback.filter())
+@dp.callback_query(callbacks.SexCallback.filter())
 async def process_sex(
-    query: CallbackQuery, callback_data: SexCallback, state: FSMContext
+    query: CallbackQuery, callback_data: callbacks.SexCallback, state: FSMContext
 ):
     await state.update_data(sex=callback_data.sex)
     await question_course(query.message, state)
@@ -176,10 +111,12 @@ async def question_course(message: types.Message, state: FSMContext):
             inline_keyboard=[
                 [
                     InlineKeyboardButton(
-                        text="1", callback_data=CourseCallback(course=1).pack()
+                        text="1",
+                        callback_data=callbacks.CourseCallback(course=1).pack(),
                     ),
                     InlineKeyboardButton(
-                        text="2", callback_data=CourseCallback(course=2).pack()
+                        text="2",
+                        callback_data=callbacks.CourseCallback(course=2).pack(),
                     ),
                 ]
             ]
@@ -187,9 +124,9 @@ async def question_course(message: types.Message, state: FSMContext):
     )
 
 
-@dp.callback_query(CourseCallback.filter())
+@dp.callback_query(callbacks.CourseCallback.filter())
 async def process_course(
-    query: CallbackQuery, callback_data: CourseCallback, state: FSMContext
+    query: CallbackQuery, callback_data: callbacks.CourseCallback, state: FSMContext
 ):
     await state.update_data(course=callback_data.course)
     await question_living(query.message, state)
@@ -205,25 +142,27 @@ async def question_living(message: types.Message, state: FSMContext):
                 [
                     InlineKeyboardButton(
                         text="В Облаке",
-                        callback_data=LivingCallback(living="Cloud").pack(),
+                        callback_data=callbacks.LivingCallback(living="Cloud").pack(),
                     ),
                 ],
                 [
                     InlineKeyboardButton(
                         text="В Космосе",
-                        callback_data=LivingCallback(living="Cosmos").pack(),
+                        callback_data=callbacks.LivingCallback(living="Cosmos").pack(),
                     ),
                 ],
                 [
                     InlineKeyboardButton(
                         text="В Байкале",
-                        callback_data=LivingCallback(living="Baikal").pack(),
+                        callback_data=callbacks.LivingCallback(living="Baikal").pack(),
                     ),
                 ],
                 [
                     InlineKeyboardButton(
                         text="Не в общаге",
-                        callback_data=LivingCallback(living="Homeless").pack(),
+                        callback_data=callbacks.LivingCallback(
+                            living="Homeless"
+                        ).pack(),
                     ),
                 ],
             ]
@@ -231,9 +170,9 @@ async def question_living(message: types.Message, state: FSMContext):
     )
 
 
-@dp.callback_query(LivingCallback.filter())
+@dp.callback_query(callbacks.LivingCallback.filter())
 async def process_living(
-    query: CallbackQuery, callback_data: LivingCallback, state: FSMContext
+    query: CallbackQuery, callback_data: callbacks.LivingCallback, state: FSMContext
 ):
     state_data = await state.get_data()
     await userdb.add_user(
@@ -244,12 +183,19 @@ async def process_living(
             living=callback_data.living,
         )
     )
-    await start_survey(query.message)
+    await explaining_links(query.message)
 
 
-async def start_survey(message: types.Message):
-    await message.answer(explaining_links_message, parse_mode=ParseMode.HTML)
+async def explaining_links(message: types.Message):
     await message.answer(
+        templates.explaining_links_message,
+        callback_data=callbacks.TypeInfoCallback().pack(),
+    )
+
+
+@dp.callback_query(callbacks.TypeInfoCallback)
+async def start_survey(query: CallbackQuery, callback_data: callbacks.TypeInfoCallback):
+    await query.answer(
         "Напиши юзернейм (@username) и я предложу тебе выбрать его категорию",
         reply_markup=rkb,
     )
@@ -277,20 +223,6 @@ async def get_usS(message: types.Message):
     await message.answer(all_users_and_rating, reply_markup=rkb)
 
 
-def make_type_str(type: str, profile: str, strong_sides: List[str], recomendation: str):
-    return f"""🎯<b>ТИП: «{type}»</b>
-
-📊 Ваш профиль:
-<i>{profile}</i>
-
-💪 Ваши сильные стороны:
-• {"\n• ".join(strong_sides)}
-
-🌟 Рекомендация:
-<i>{recomendation}</i>
-"""
-
-
 @dp.message(F.text == "Узнать тип личности")
 async def get_summary(message: types.Message):
     links = await userdb.get_links(message.from_user.username)
@@ -304,7 +236,7 @@ async def get_summary(message: types.Message):
         )
     elif p3 >= 0.5:
         await message.answer(
-            make_type_str(
+            templates.make_type_str(
                 "Сердце компании",
                 "Вы создаете глубокие, осознанные отношения. Для вас важно не количество контактов, а их качество и надежность",
                 [
@@ -315,11 +247,10 @@ async def get_summary(message: types.Message):
                 ],
                 'Попробуйте иногда быть "социальным мостом" — знакомить своих друзей из разных кругов. Ваша глубина общения может стать основой для новых интересных компаний',
             ),
-            parse_mode=ParseMode.HTML,
         )
     elif p2 >= 0.4:
         await message.answer(
-            make_type_str(
+            templates.make_type_str(
                 "Социальный организатор",
                 "Вы — мастер поддерживать ровные, комфортные отношения. С вами легко и приятно общаться на повседневные темы",
                 [
@@ -330,11 +261,10 @@ async def get_summary(message: types.Message):
                 ],
                 "Попробуйте выбрать 1-2 самых интересных вам приятеля и предложить им более тесное общение — совместный проект или регулярные встречи. Ваши легкие связи могут перерасти в нечто большее",
             ),
-            parse_mode=ParseMode.HTML,
         )
     elif p3 >= 0.25 and p2 >= 0.25 and p1 >= 0.25:
         await message.answer(
-            make_type_str(
+            templates.make_type_str(
                 "Универсальный коннектор",
                 "Вы легко перемещаетесь между разными социальными слоями. От тактических знакомств до близкой дружбы — вы чувствуете себя комфортно на любом уровне",
                 [
@@ -345,11 +275,10 @@ async def get_summary(message: types.Message):
                 ],
                 "Используйте свой дар соединять людей! Организуйте мини-встречи людей из разных ваших кругов — возможно, вы создадите новые интересные коллаборации",
             ),
-            parse_mode=ParseMode.HTML,
         )
     elif p3 >= 0.35 and p1 >= 0.25:
         await message.answer(
-            make_type_str(
+            templates.make_type_str(
                 "Стратегический коммуникатор",
                 "Вы сочетаете глубокую эмоциональную привязанность с широким кругом полезных контактов. Это редкий и ценный навык!",
                 [
@@ -360,11 +289,10 @@ async def get_summary(message: types.Message):
                 ],
                 'Подумайте, как ваши "знакомые" могут помочь вашим "друзьям" (и наоборот). Вы идеально positioned для создания синергии между разными частями вашей сети',
             ),
-            parse_mode=ParseMode.HTML,
         )
     elif abs(p3 - p2) <= 0.3 and abs(p2 - p1) / len(ratings) <= 0.3:
         await message.answer(
-            make_type_str(
+            templates.make_type_str(
                 "Стабильный якорь",
                 "Вы выстраиваете гармоничную социальную экосистему, где каждому типу отношений находится свое место",
                 [
@@ -375,7 +303,6 @@ async def get_summary(message: types.Message):
                 ],
                 'Ваша сила — в стабильности. Подумайте, не хотите ли вы немного "сдвинуть баланс" в какую-то сторону: углубить несколько связей или, наоборот, расширить круг тактических контактов',
             ),
-            parse_mode=ParseMode.HTML,
         )
     else:
         await message.answer(
@@ -405,7 +332,7 @@ async def user_name_checker(message: types.Message):
             [
                 InlineKeyboardButton(
                     text="Близкий друг",
-                    callback_data=LinkCallback(
+                    callback_data=callbacks.LinkCallback(
                         username_to=username_to, rating=3
                     ).pack(),
                 )
@@ -413,7 +340,7 @@ async def user_name_checker(message: types.Message):
             [
                 InlineKeyboardButton(
                     text="Приятель",
-                    callback_data=LinkCallback(
+                    callback_data=callbacks.LinkCallback(
                         username_to=username_to, rating=2
                     ).pack(),
                 ),
@@ -421,7 +348,7 @@ async def user_name_checker(message: types.Message):
             [
                 InlineKeyboardButton(
                     text="Знакомый",
-                    callback_data=LinkCallback(
+                    callback_data=callbacks.LinkCallback(
                         username_to=username_to, rating=1
                     ).pack(),
                 ),
@@ -432,11 +359,9 @@ async def user_name_checker(message: types.Message):
     await message.answer("Кто он для тебя?", reply_markup=kb)
 
 
-@dp.callback_query(LinkCallback.filter())
-async def process_data(query: CallbackQuery, callback_data: LinkCallback):
+@dp.callback_query(callbacks.LinkCallback.filter())
+async def process_data(query: CallbackQuery, callback_data: callbacks.LinkCallback):
     from_username = query.from_user.username
-    if from_username is None:
-        raise Exception("WTF?")
     if await userdb.get_user(from_username) is None:
         await query.answer("Похоже тебе нужно перезапустить бота: /start")
         return
@@ -445,10 +370,10 @@ async def process_data(query: CallbackQuery, callback_data: LinkCallback):
         Link(username_to=callback_data.username_to, rating=callback_data.rating),
     )
     await query.message.edit_text(
-        **Text(
+        as_list(
             f"✅ @{callback_data.username_to} добавлен как {rating_to_text(callback_data.rating).lower()}",
             "\n📝 Чтобы добавить ещё друга — просто введи следующий юзернейм.",
             "\n🔁 Чем больше друзей ты добавишь — тем точнее будет твой социальный портрет!",
-        ).as_kwargs(),
+        ),
         reply_markup=None,
     )
