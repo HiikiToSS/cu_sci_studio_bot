@@ -6,6 +6,7 @@ from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+from aiogram.fsm.storage.pymongo import PyMongoStorage
 from aiogram.types import (
     CallbackQuery,
     InlineKeyboardButton,
@@ -15,6 +16,7 @@ from aiogram.types import (
 )
 from aiogram.utils.formatting import as_list
 from dotenv import load_dotenv
+from pymongo import AsyncMongoClient
 
 from . import callbacks, templates
 from .models import Link, User, check_tg_username
@@ -26,13 +28,16 @@ TOKEN = os.getenv("TG_BOT_TOKEN")
 if TOKEN is None:
     raise Exception("Couldn't find TG_BOT_TOKEN")
 
+MONGODB_HOST = os.getenv("MONGODB_HOST")
+
+client = AsyncMongoClient(MONGODB_HOST)
 bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
-dp = Dispatcher()
+dp = Dispatcher(storage=PyMongoStorage(client, db_name="cu_graph_bot"))
 
 
 async def main():
-    global userdb
-    userdb = UserDB()
+    global userdb, bot, dp
+    userdb = UserDB(client)
     await dp.start_polling(bot)
 
 
@@ -189,6 +194,7 @@ async def process_living(
             living=callback_data.living,
         )
     )
+    await state.clear()
     await explaining_links(query.message)
 
 

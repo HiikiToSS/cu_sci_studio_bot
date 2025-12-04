@@ -11,29 +11,19 @@ from pymongo.errors import ServerSelectionTimeoutError
 
 from .models import Link, User, Username
 
-load_dotenv()
-
-MONGODB_HOST = os.getenv("MONGODB_HOST")
-
 
 class UserNotExist(Exception):
     pass
 
 
 class UserDB:
-    client: Optional[AsyncMongoClient] = None
-    db: Optional[pymongo_database.AsyncDatabase] = None
-    collection: Optional[pymongo_collection.AsyncCollection] = None
+    db: pymongo_database.AsyncDatabase
+    collection: pymongo_collection.AsyncCollection = None
 
-    def __init__(self):
-        try:
-            self.client = AsyncMongoClient(MONGODB_HOST, serverSelectionTimeoutMS=5000)
-            self.db = self.client.get_database("cu_graph_bot")
-            self.collection = self.db.get_collection("users")
-            asyncio.create_task(self.collection.create_index("username", unique=True))
-        except ServerSelectionTimeoutError as e:
-            print("Ошибка подключения к MongoDB:", e)
-            raise e
+    def __init__(self, client):
+        self.db = client.get_database("cu_graph_bot")
+        self.collection = self.db.get_collection("users")
+        asyncio.create_task(self.collection.create_index("username", unique=True))
 
     async def add_user(self, user: User) -> None:
         current_user_to_add = await self.collection.find_one(
