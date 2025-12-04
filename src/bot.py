@@ -236,13 +236,20 @@ async def get_usS(message: types.Message):
     await userdb.add_ids_to_user(
         message.from_user.username, message.from_user.id, message.chat.id
     )
+
     links = await userdb.get_links(message.from_user.username)
     if len(links) == 0:
         await message.answer("Ты ещё не добавил связи!\nВведи юзернейм (@username)")
         return
-    all_users_and_rating = "\n".join(
-        f"@{link.username_to} - {rating_to_text(link.rating)}" for link in links
+
+    friends, buddy, familiar = (
+        ["• @" + i.username_to for i in filter(lambda x: x.rating == rate, links)]
+        for rate in range(3, 0, -1)
     )
+
+    all_users_and_rating = as_list(
+        "Друзья:", *friends, "", "Приятели:", *buddy, "", "Знакомые:", *familiar
+    ).as_html()
     await message.answer(all_users_and_rating, reply_markup=rkb)
 
 
