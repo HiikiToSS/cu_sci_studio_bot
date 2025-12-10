@@ -2,7 +2,6 @@ import io
 import os
 from typing import List
 
-from aiogram.utils.payload import decode_payload
 import qrcode
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.client.default import DefaultBotProperties
@@ -22,9 +21,9 @@ from aiogram.types import (
 )
 from aiogram.utils.deep_linking import create_start_link
 from aiogram.utils.formatting import as_list
+from aiogram.utils.payload import decode_payload
 from dotenv import load_dotenv
 from pymongo import AsyncMongoClient
-from qrcode import QRCode
 
 from . import callbacks, templates
 from .models import Link, User, check_tg_username
@@ -354,6 +353,7 @@ async def get_usS(message: types.Message):
 @dp.message(F.text == "Узнать тип личности")
 async def redirect_summary(message: types.Message):
     await get_summary(message)
+
 
 @dp.message(F.text == "Тип личности")
 async def get_summary(message: types.Message):
