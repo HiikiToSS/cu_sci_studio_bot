@@ -522,9 +522,12 @@ async def get_referral(message: types.Message):
 
 
 async def notify_users():
-    users = await userdb.get_users(links_less_than=5, chatid=True)
+    users = await userdb.get_users(links_less_than=4, chatid=True)
     for user in users:
-        await bot.send_message(chat_id=user.chatid, text=templates.notification_message)
+        try:
+            await bot.send_message(chat_id=user.chatid, text=templates.notification_message)
+        except:
+            pass
 
 
 async def main():
