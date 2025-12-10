@@ -1,9 +1,9 @@
 import asyncio
 from typing import Iterable, List, Optional
 
-from aiogram.types import user
 import pymongo.asynchronous.collection as pymongo_collection
 import pymongo.asynchronous.database as pymongo_database
+from aiogram.types import user
 from pymongo.asynchronous.cursor import AsyncCursor
 
 from .models import Link, User, Username
@@ -62,7 +62,8 @@ class UserDB:
         self,
         username: Username | Iterable[Username] | None = None,
         links_less_than: Optional[int] = None,
-    ) -> AsyncCursor:
+        chatid: bool = False,
+    ) -> List[User]:
         query = {}
         if isinstance(username, (list, tuple)):
             query["$or"] = [{"username": i} for i in username]
@@ -70,6 +71,8 @@ class UserDB:
             query["username"] = username
         if links_less_than:
             query[f"links.{links_less_than}"] = {"$exists": False}
+        if chatid:
+            query["chatid"] = {"$exists": True}
         all_user_data = self.collection.find(query)
         all_user_data = [User.model_validate(i) async for i in all_user_data]
         return all_user_data

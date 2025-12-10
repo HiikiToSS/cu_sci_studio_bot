@@ -1,5 +1,6 @@
 import io
 import os
+import datetime
 from typing import List
 
 import qrcode
@@ -10,6 +11,7 @@ from aiogram.filters import CommandObject, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.pymongo import PyMongoStorage
+from aiogram.methods import SendMessage, send_message
 from aiogram.types import (
     BufferedInputFile,
     CallbackQuery,
@@ -22,6 +24,10 @@ from aiogram.types import (
 from aiogram.utils.deep_linking import create_start_link
 from aiogram.utils.formatting import as_list
 from aiogram.utils.payload import decode_payload
+from apscheduler.jobstores.mongodb import MongoDBJobStore
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 from dotenv import load_dotenv
 from pymongo import AsyncMongoClient
 
@@ -40,12 +46,7 @@ MONGODB_HOST = os.getenv("MONGODB_HOST")
 client = AsyncMongoClient(MONGODB_HOST)
 bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher(storage=PyMongoStorage(client, db_name="cu_graph_bot"))
-
-
-async def main():
-    global userdb
-    userdb = UserDB(client)
-    await dp.start_polling(bot)
+scheduler = AsyncIOScheduler()
 
 
 rkb = ReplyKeyboardMarkup(
@@ -518,3 +519,24 @@ async def get_referral(message: types.Message):
         + "\n".join(str_list)
         + f"\nВсего баллов: {points}"
     )
+
+
+async def notify_users():
+    users = await userdb.get_users(links_less_than=5, chatid=True)
+    for user in users:
+        await bot.send_message(chat_id=user.chatid, text=templates.notification_message)
+
+
+async def main():
+    global userdb
+    userdb = UserDB(client)
+    # scheduler.add_job(notify_users, CronTrigger(hour=22, minute=12))
+    scheduler.add_job(
+        notify_users,
+        IntervalTrigger(
+            days=1,
+            start_date=datetime.datetime.now() + datetime.timedelta(seconds=5),
+        ),
+    )
+    scheduler.start()
+    await dp.start_polling(bot)

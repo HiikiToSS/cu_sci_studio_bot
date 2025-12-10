@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "aiogram>=3.22.0",
+    "apscheduler>=3.11.1",
     "asyncio>=4.0.0",
     "dotenv>=0.9.9",
     "pydantic>=2.11.10",
