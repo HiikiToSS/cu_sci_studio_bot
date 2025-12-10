@@ -16,5 +16,5 @@ args = parser.parse_args()
 client = pymongo.MongoClient(MONGODB_HOST)
 database = client.get_database("cu_graph_bot")
 collection = database.get_collection("users")
-users = ["@" + i["username"] for i in collection.find({"_links.4": {"$exists": True}})]
+users = ["@" + i["username"] for i in collection.find({"links.4": {"$exists": True}})]
 print(*random.choices(users, k=args.count))
