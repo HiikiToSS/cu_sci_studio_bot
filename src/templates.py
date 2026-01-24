@@ -47,6 +47,7 @@ explaining_links_message = """<u><b>⁉️ НА КАКИЕ ГРУППЫ МЫ Д�
 notification_message = """Карта связей ЦУ будет неполной без твоих друзей. Отметь 5+ за 2 минуты
 """
 
+
 def make_type_str(type: str, profile: str, strong_sides: List[str], recomendation: str):
     return f"""🎯<b>ТИП: «{type}»</b>
 
@@ -59,3 +60,6 @@ def make_type_str(type: str, profile: str, strong_sides: List[str], recomendatio
 🌟 Рекомендация:
 <i>{recomendation}</i>
 """
+
+
+readonly_message = """Прости, опрос уже закончился!"""

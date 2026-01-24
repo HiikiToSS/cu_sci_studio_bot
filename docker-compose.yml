@@ -6,6 +6,7 @@ services:
     environment:
       TG_BOT_TOKEN: ${TG_BOT_TOKEN}
       MONGODB_HOST: mongodb://${MONGODB_USERNAME}:${MONGODB_PASSWORD}@mongodb:${MONGODB_PORT}
+      READONLY_MODE: False
     develop:
       watch:
         - action: sync+restart

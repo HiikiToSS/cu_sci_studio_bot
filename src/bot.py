@@ -42,6 +42,9 @@ if TOKEN is None:
     raise Exception("Couldn't find TG_BOT_TOKEN")
 
 MONGODB_HOST = os.getenv("MONGODB_HOST")
+READONLY = os.getenv("READONLY_MODE")
+if READONLY is None:
+    READONLY = False
 
 client = AsyncMongoClient(MONGODB_HOST)
 bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
@@ -71,6 +74,11 @@ class AddingUser(StatesGroup):
 async def start_handler(
     message: types.Message, command: CommandObject, state: FSMContext
 ):
+    if READONLY:
+        await message.answer(
+            templates.readonly_message,
+        )
+        return
     await state.set_state(AddingUser.starting)
     if command.args:
         linked_by = decode_payload(command.args)
@@ -243,10 +251,11 @@ async def explaining_links(message: types.Message):
 
 @dp.callback_query(callbacks.TypeInfoCallback.filter())
 async def start_survey(query: CallbackQuery, callback_data: callbacks.TypeInfoCallback):
-    await query.message.answer(
-        "Напиши юзернейм (@username) и я предложу тебе выбрать его категорию",
-        reply_markup=rkb,
-    )
+    if not READONLY:
+        await query.message.answer(
+            "Напиши юзернейм (@username) и я предложу тебе выбрать его категорию",
+            reply_markup=rkb,
+        )
 
 
 def rating_to_text(rating: int) -> str:
@@ -460,6 +469,10 @@ async def get_count(message: types.Message):
 
 @dp.message(F.text == "Реферальная система")
 async def get_referral(message: types.Message):
+    if READONLY:
+        await message.answer(templates.readonly_message)
+        return
+
     def generate_message(
         link: str, str_list: List[str] = None, points: int = None
     ) -> str:
@@ -525,7 +538,9 @@ async def notify_users():
     users = await userdb.get_users(links_less_than=4, chatid=True)
     for user in users:
         try:
-            await bot.send_message(chat_id=user.chatid, text=templates.notification_message)
+            await bot.send_message(
+                chat_id=user.chatid, text=templates.notification_message
+            )
         except:
             pass
 
@@ -534,12 +549,12 @@ async def main():
     global userdb
     userdb = UserDB(client)
     # scheduler.add_job(notify_users, CronTrigger(hour=22, minute=12))
-    scheduler.add_job(
-        notify_users,
-        IntervalTrigger(
-            days=1,
-            start_date=datetime.datetime.now() + datetime.timedelta(seconds=5),
-        ),
-    )
-    scheduler.start()
+    # scheduler.add_job(
+    #     notify_users,
+    #     IntervalTrigger(
+    #         days=1,
+    #         start_date=datetime.datetime.now() + datetime.timedelta(seconds=5),
+    #     ),
+    # )
+    # scheduler.start()
     await dp.start_polling(bot)
