@@ -1,7 +1,7 @@
 version: '3'
 services:
   bot:
-    build: .
+    build: ./bot
     container_name: cu-graph-bot
     environment:
       TG_BOT_TOKEN: ${TG_BOT_TOKEN}
