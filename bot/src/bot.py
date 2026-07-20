@@ -43,8 +43,10 @@ if TOKEN is None:
 
 MONGODB_HOST = os.getenv("MONGODB_HOST")
 READONLY = os.getenv("READONLY_MODE")
-if READONLY is None:
+if READONLY.lower() != "true":
     READONLY = False
+else:
+    READONLY = True
 
 client = AsyncMongoClient(MONGODB_HOST)
 bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))

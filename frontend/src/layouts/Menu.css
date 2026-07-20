@@ -1,0 +1,33 @@
+.menu {
+    position: fixed;
+    bottom: 1.5rem;
+    left: 0;
+    right: 0;
+    height: 10%;
+    width: 88%;
+
+    box-shadow: 0 2px 16px hsla(228, 95%, 4%, 0.1);
+
+    margin-inline: auto;
+    padding: 1rem 1.75rem;
+    border-radius: 4rem;
+
+    background-color: var(--bar);
+}
+
+.menu-list {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+}
+
+.menu-item,
+.menu-item-selected {
+    font-size: 1.5rem;
+    color: var(--muted);
+    transition: color 0.4s;
+}
+
+.menu-item-selected {
+    color: var(--text);
+}
